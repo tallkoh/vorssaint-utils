@@ -6,7 +6,7 @@ icon hit targets and 20-point app icons. Use 4-point icon spacing and 10-point
 outer padding. Cap the icon strip at 356 points and scroll horizontally for
 more items. Hover backgrounds are subtle system foreground at 8% opacity.
 Labels belong in tooltips and accessibility labels. A trailing ellipsis exposes
-arrange, refresh, and Settings. Settings owns all setup instructions.
+arrange, refresh, and Settings. The main dropdown and Settings show setup instructions and a visible Done action. A permanent Vorssaint button in the shelf opens the main panel directly.
 
 The shelf and main menu panel are mutually exclusive. Width follows item count,
 so a single item never occupies an oversized panel. Preserve keyboard focus and

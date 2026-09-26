@@ -78,7 +78,7 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
         DispatchQueue.main.async { [weak self] in
             guard let self, self.launcher != nil else { return }
             self.captureDividerFrame()
-            if self.arranging { self.showSettings() } else { self.collapse() }
+            if self.arranging { self.openVorssaint() } else { self.collapse() }
         }
     }
 
@@ -140,7 +140,7 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
                let reported = button.window?.frame {
                 rect.origin.x += current.midX - reported.midX
             }
-            self.popover.contentSize = NSSize(width: MenuBarShelfSupport.stripWidth(itemCount: self.items.count) + 64, height: MenuBarShelfSupport.stripHeight)
+            self.popover.contentSize = NSSize(width: MenuBarShelfSupport.stripWidth(itemCount: self.items.count) + 102, height: MenuBarShelfSupport.stripHeight)
             self.popover.show(relativeTo: rect, of: button, preferredEdge: .minY)
             self.popover.contentViewController?.view.window?.makeKey()
         }
@@ -150,6 +150,25 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
     }
 
     func dismiss() { popover.close() }
+
+    var isRunning: Bool { launcher != nil }
+
+    /// Our own panel never depends on AXPress or the hidden main status item.
+    func openVorssaint() {
+        guard let button = launcher?.button else { return }
+        popover.close()
+        var rect = button.bounds
+        if let current = nativeFrame(for: launcher, name: "MenuBarShelfLauncher", cache: &launcherWindowID),
+           let reported = button.window?.frame {
+            rect.origin.x += current.midX - reported.midX
+        }
+        (NSApp.delegate as? AppDelegate)?.openPanelFromShelf(anchor: button, rect: rect)
+    }
+
+    func beginArrangement() {
+        setArranging(true)
+        openVorssaint()
+    }
 
     func showSettings() {
         popover.close()
@@ -242,7 +261,7 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
                 guard let self, self.generation == request, self.launcher != nil else { return }
                 self.items = hidden
                 self.loading = false
-                self.popover.contentSize = NSSize(width: MenuBarShelfSupport.stripWidth(itemCount: hidden.count) + 64,
+                self.popover.contentSize = NSSize(width: MenuBarShelfSupport.stripWidth(itemCount: hidden.count) + 102,
                                                  height: MenuBarShelfSupport.stripHeight)
             }
         }

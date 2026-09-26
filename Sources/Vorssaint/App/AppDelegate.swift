@@ -462,6 +462,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         showPopover(anchor: button)
     }
 
+    func openPanelFromShelf(anchor: NSStatusBarButton, rect: NSRect) {
+        MenuPanelFocus.shared.showNormalPanel()
+        closePopover(animated: false) { [weak self, weak anchor] in
+            guard let self, let anchor else { return }
+            self.showPopover(anchor: anchor, allowRecentClose: true, animate: false, anchorRect: rect)
+        }
+    }
+
     private func toggleMainPopover() {
         if NotchSupport.routesAppPanel(), NotchService.shared.acceptsSystemFeedback {
             NotchService.shared.openAppPanel(toggle: true); return
@@ -943,7 +951,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                              allowRecentClose: Bool = false,
                              animate: Bool = true,
                              activate: Bool = true,
-                             restoring savedAnchor: PanelAnchor? = nil) {
+                             restoring savedAnchor: PanelAnchor? = nil,
+                             anchorRect: NSRect? = nil) {
         guard !popover.isShown, !popoverIsClosing else { return }
         // The click that just transient-dismissed the popover also lands here;
         // reopening would make the panel look impossible to close.
@@ -958,7 +967,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             popover.animates = false
         }
         MenuPanelFocus.shared.setPopoverVisible(true)
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.show(relativeTo: anchorRect ?? button.bounds, of: button, preferredEdge: .minY)
         MenuPanelFocus.shared.setPopoverVisible(popover.isShown)
         if !animate {
             popover.animates = true
@@ -1665,6 +1674,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// after the frame settles this checks the icon really made it on screen
     /// and, if not, says so instead of looking like the button did nothing.
     func reshowStatusItem() {
+        // Reveal the shelf boundary before recovery, so our own divider cannot
+        // immediately hide the rebuilt icon and produce a false failure alert.
+        if AppFeature.menuBarShelf.isAvailable, MenuBarShelfService.shared.isRunning {
+            MenuBarShelfService.shared.setArranging(true)
+        }
         // The button is an explicit "I want the icon back": neither hiding
         // option may immediately re-hide what the user just asked to see
         // (and then trip the "still hidden" alert).

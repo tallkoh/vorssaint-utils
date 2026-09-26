@@ -14,10 +14,16 @@ struct MenuBarShelfView: View {
 
     var body: some View {
         HStack(spacing: 6) {
+            Button { service.openVorssaint() } label: {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
+                    .resizable().scaledToFit().frame(width: 20, height: 20)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain).help("Vorssaint").accessibilityLabel("Vorssaint")
             if service.loading && service.items.isEmpty {
                 ProgressView().controlSize(.small).frame(width: 30, height: 30)
             } else if service.items.isEmpty {
-                Button(text.arrange) { service.showSettings() }
+                Button(text.arrange) { service.beginArrangement() }
                     .buttonStyle(.plain).font(.system(size: 12))
                     .padding(.horizontal, 10)
             } else {
@@ -48,7 +54,10 @@ struct MenuBarShelfView: View {
             }
             Divider().frame(height: 18)
             Menu {
-                Button(service.arranging ? text.done : text.arrange) { service.setArranging(!service.arranging) }
+                Button(service.arranging ? text.done : text.arrange) {
+                    if service.arranging { service.setArranging(false) }
+                    else { service.beginArrangement() }
+                }
                 Button(l10n.s.homebrewRefresh) { service.refresh() }
                 Button(l10n.s.panelSettings) { service.showSettings() }
             } label: {
@@ -97,5 +106,38 @@ struct MenuBarShelfSettings: View {
                 }
             }
         }
+    }
+}
+
+/// Setup is visible in the app dropdown; the shelf itself stays a single row.
+struct MenuBarShelfPanelControls: View {
+    @ObservedObject private var service = MenuBarShelfService.shared
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.menuBarShelfEnabled) private var enabled = false
+    private var text: MenuBarShelfStrings { FeatureStrings.menuBarShelf(l10n.language) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label(text.title, systemImage: "menubar.rectangle")
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer()
+                if enabled && service.isRunning {
+                    Button(service.arranging ? text.done : text.arrange) {
+                        service.setArranging(!service.arranging)
+                    }
+                } else {
+                    Button(text.arrange) { service.showSettings() }
+                }
+            }
+            if service.arranging {
+                Text(text.instructions).font(.system(size: 12)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if enabled && service.isRunning {
+                Button(text.open) { service.toggle() }.font(.system(size: 12))
+            }
+        }
+        .padding(10)
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
     }
 }

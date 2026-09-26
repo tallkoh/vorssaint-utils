@@ -1,12 +1,12 @@
 # Menu bar shelf
 
 This fork adds an opt-in menu bar manager. Enable **Menu bar shelf** in Features,
-then open **Settings → Menu bar**. Hold Command and drag the few icons you want
+then use **Arrange** in the main Vorssaint dropdown (also available in **Settings → Menu bar**). Hold Command and drag the few icons you want
 to keep to the right of the divider. Everything on its left goes into the shelf
 when you choose Done. Keep the shelf's chevron to the right of the divider.
 
 Click the chevron for a compact, horizontally scrollable row of app icons. Hover
-for names; click to open the original app's menu. The ellipsis offers arrangement,
+for names; click to open the original app's menu. A permanent Vorssaint button opens the main panel directly, even if its original icon is hidden. The ellipsis offers arrangement,
 refresh, and Settings. The main Vorssaint panel and the shelf dismiss one another.
 
 The selected native item briefly moves beside the chevron before opening. It

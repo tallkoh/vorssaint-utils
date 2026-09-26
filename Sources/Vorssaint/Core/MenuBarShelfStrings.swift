@@ -21,7 +21,7 @@ extension FeatureStrings {
         case .enUS: return MenuBarShelfStrings(
             title: "Menu bar shelf",
             caption: "Keep a few favourites visible and open the rest from a shelf.",
-            instructions: "Hold ⌘ and drag icons left of │ to put them on the shelf. Keep your favourites and the shelf button on the right. Open the shelf and choose Done when finished.",
+            instructions: "Hold ⌘ and drag icons: left of │ goes in the shelf; right stays visible. Keep ⌄ on the right. Click Done to hide the divider.",
             arrange: "Arrange",
             done: "Done",
             search: "Find a menu bar item",

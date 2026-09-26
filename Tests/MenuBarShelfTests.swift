@@ -5,6 +5,16 @@ import Foundation
 
 enum MenuBarShelfTests {
     static func run(_ suite: TestSuite) {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let service = (try? String(contentsOf: root.appendingPathComponent("Sources/Vorssaint/Services/MenuBarShelf/MenuBarShelfService.swift"), encoding: .utf8)) ?? ""
+        let view = (try? String(contentsOf: root.appendingPathComponent("Sources/Vorssaint/UI/MenuBarShelfView.swift"), encoding: .utf8)) ?? ""
+        let app = (try? String(contentsOf: root.appendingPathComponent("Sources/Vorssaint/App/AppDelegate.swift"), encoding: .utf8)) ?? ""
+        suite.expect(view.contains("Button { service.openVorssaint() }") && service.contains("openPanelFromShelf(anchor: button, rect: rect)"),
+                     "Vorssaint has a permanent direct action independent of hidden AX items")
+        let recovery = app.components(separatedBy: "func reshowStatusItem() {").last?.components(separatedBy: "private var isReshowingStatusItem").first ?? ""
+        suite.expect((recovery.range(of: "MenuBarShelfService.shared.setArranging(true)")?.lowerBound ?? recovery.endIndex) < (recovery.range(of: "statusController?.recreateStatusItem()")?.lowerBound ?? recovery.startIndex),
+                     "icon recovery expands our divider before rebuilding the app icon")
+
         suite.expect(MenuBarShelfSupport.stripHeight == 48, "tray stays one compact menu-bar-height row")
         suite.expect(MenuBarShelfSupport.stripWidth(itemCount: 1) == 32, "one icon never leaves an empty card grid")
         suite.expect(MenuBarShelfSupport.stripWidth(itemCount: 40) == 356, "overflow scrolls horizontally instead of growing the panel")

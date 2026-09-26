@@ -89,6 +89,7 @@ struct MenuPanelView: View {
     @State private var navigableContentHeight: CGFloat = 0
     @State private var metricContentHeight: CGFloat = 0
     @State private var updateBannerHeight: CGFloat = 0
+    @State private var shelfControlsHeight: CGFloat = 0
     @State private var selectedSection: PanelSectionID = PanelLayout.order.first ?? .keepAwake
     @State private var selectedMetric: MetricDetailKind?
     @FocusState private var focusedSection: PanelSectionID?
@@ -283,7 +284,7 @@ struct MenuPanelView: View {
         let bannerHeight = updates.state.showsMenuPanelBanner
             ? (max(updateBannerHeight, 48) + 12)
             : 0
-        return 180 + bannerHeight
+        return 180 + bannerHeight + (AppFeature.menuBarShelf.isAvailable ? max(70, shelfControlsHeight) + 8 : 0)
     }
 
     private var estimatedNavigableContentHeight: CGFloat {
@@ -442,6 +443,17 @@ struct MenuPanelView: View {
     }
 
     private var footer: some View {
+        VStack(spacing: 8) {
+            if notchSize == nil, AppFeature.menuBarShelf.isAvailable {
+                MenuBarShelfPanelControls()
+                    .fixedSize(horizontal: false, vertical: true)
+                    .reportHeight($shelfControlsHeight)
+            }
+            footerActions
+        }
+    }
+
+    private var footerActions: some View {
         HStack(spacing: 8) {
             footerButton(l10n.s.panelSettings,
                          systemImage: "gearshape",
