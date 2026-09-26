@@ -324,7 +324,7 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
             guard !Task.isCancelled, self.launcher != nil else { return }
             guard revealed else { self.showOpenError(); return }
             let baseline = Self.visibleWindows(for: item.pid)
-            let clicked = await self.nativeBridge.clickBorrowed()
+            let clicked = await self.nativeBridge.activateBorrowed()
             guard !Task.isCancelled else { return }
             if !clicked { self.showOpenError() }
             self.returnAfterDismissal(item, baseline: baseline)
@@ -345,7 +345,8 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
         returnTask = Task { @MainActor [weak self] in
             // Let the target finish presenting before deciding that it is closed.
             try? await Task.sleep(for: .seconds(1))
-            for _ in 0..<120 {
+            var sawPresentation = false
+            for attempt in 0..<120 {
                 guard !Task.isCancelled, let self, self.launcher != nil else { return }
                 let menuOpen: Bool = await withCheckedContinuation { continuation in
                     self.scanQueue.async {
@@ -353,8 +354,14 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
                     }
                 }
                 guard !Task.isCancelled else { return }
-                if !menuOpen && Self.visibleWindows(for: item.pid).subtracting(baseline).isEmpty {
+                let presented = menuOpen || !Self.visibleWindows(for: item.pid).subtracting(baseline).isEmpty
+                if presented { sawPresentation = true }
+                else if sawPresentation {
                     _ = await self.restoreBorrowed()
+                    return
+                } else if attempt >= 8 {
+                    // Some apps do not expose their popover to AX. Keep its
+                    // anchor available until the next explicit shelf action.
                     return
                 }
                 try? await Task.sleep(for: .milliseconds(500))

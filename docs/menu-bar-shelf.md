@@ -16,7 +16,9 @@ Return and pin operations briefly expand the divider so their destination is
 onscreen. If the original neighbour remains offscreen, the item returns to the
 shelf boundary instead; hidden-item order may change.
 Long-lived app windows stop the dismissal poll after one minute; opening the
-shelf again returns the item. Disabling the feature removes the divider and
+shelf again returns the item. The return monitor must observe a menu/window
+before interpreting its disappearance as dismissal. Apps that expose neither
+keep their temporary anchor until the next shelf action. Disabling the feature removes the divider and
 restores access to the whole menu bar. If a nested macOS modal loop prevents
 cleanup during Quit, a bounded fallback lets the process exit and removes the
 divider; all icons remain accessible. The app does not change other apps' settings.
@@ -37,7 +39,9 @@ divider; all icons remain accessible. The app does not change other apps' settin
   Each tap expires within 350 ms. Mouse-up is sent twice to leave Tahoe's native
   drag tracking, including when an operation is cancelled.
 - The bridge waits for native geometry to settle, with up to three move attempts.
-  Clicks use a separate single-delivery path with no move-only window field;
+  Items exposing an NSMenu use AXPress after reveal; custom buttons use native
+  clicks. Unsupported AX actions fall back to the native path. Native clicks
+  use a separate single-delivery path with no move-only window field;
   they never replay a real click through both the session and app. Moves still
   use the double-release native drag protocol.
 - Permission refresh publishes immediately on the main thread before request
@@ -73,7 +77,9 @@ status items are removed when the processes exit.
 
 Verified locally on an Apple-silicon Mac running macOS 26.4.1: development build,
 selftest, catalog/settings/localization unit suites, compact tray rendering, and
-native hidden-item reveal/menu/return with the fixture. Multiple displays,
+native hidden-item reveal/menu/return with both fixture types. OneDrive’s
+Activity Centre and Rectangle’s native menu opened from the installed shelf;
+Chrome was pinned and unpinned using the named list. Multiple displays,
 auto-hiding menu bars, full-screen Spaces, macOS 14/15/27, and every third-party
 app's custom popover still need wider hardware testing. This is a development
 build, not a notarized release.

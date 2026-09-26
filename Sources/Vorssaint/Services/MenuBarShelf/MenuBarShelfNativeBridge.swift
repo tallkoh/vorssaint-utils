@@ -101,6 +101,28 @@ final class MenuBarShelfNativeBridge {
         return await move(id: source.id, pid: item.pid, beside: target.id, right: right)
     }
 
+    /// Standard NSMenu items expose a menu child; custom buttons need a native
+    /// click. Choose by capability instead of replaying a second click blindly.
+    func activateBorrowed() async -> Bool {
+        guard let saved = borrowed else { return false }
+        let result: AXError? = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let children = MenuBarShelfScanner.attribute(saved.item.element, kAXChildrenAttribute) as? [AXUIElement] ?? []
+                guard children.contains(where: { MenuBarShelfScanner.attribute($0, kAXRoleAttribute) as? String == kAXMenuRole }) else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: AXUIElementPerformAction(saved.item.element, kAXPressAction as CFString))
+            }
+        }
+        if let result {
+            // AppKit menu tracking can outlive AX's messaging timeout.
+            if result == .success || result == .cannotComplete { return true }
+            guard result == .actionUnsupported || result == .notImplemented || result == .invalidUIElement else { return false }
+        }
+        return await clickBorrowed()
+    }
+
     /// A verified native click also works for apps with custom status-button actions.
     /// AXPress alone can report success without invoking those actions.
     func clickBorrowed() async -> Bool {

@@ -45,7 +45,7 @@ struct MenuBarShelfSmoke {
                 var actions: CFArray?
                 AXUIElementCopyActionNames(item.element, &actions)
                 print("Fixture actions: \(actions as Any)")
-                let pressed = await bridge.clickBorrowed()
+                let pressed = await bridge.activateBorrowed()
                 try await Task.sleep(for: .milliseconds(350))
                 let children = MenuBarShelfScanner.attribute(item.element, kAXChildrenAttribute) as? [AXUIElement] ?? []
                 let menu = children.first { MenuBarShelfScanner.attribute($0, kAXRoleAttribute) as? String == kAXMenuRole }
