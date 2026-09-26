@@ -47,6 +47,14 @@ final class MenuBarShelfNativeBridge {
         return matches.count == 1 ? matches[0] : nil
     }
 
+    private static func isOnScreen(_ frame: CGRect) -> Bool {
+        guard let primary = NSScreen.screens.first else { return false }
+        return NSScreen.screens.contains {
+            CGRect(x: $0.frame.minX, y: primary.frame.maxY - $0.frame.maxY,
+                   width: $0.frame.width, height: $0.frame.height).contains(frame)
+        }
+    }
+
     func reveal(_ item: MenuBarShelfItem, anchor: CGRect) async -> Bool {
         guard !busy, AXIsProcessTrusted(), borrowed == nil,
               let frame = MenuBarShelfScanner.frame(item.element) else { return false }
@@ -67,7 +75,7 @@ final class MenuBarShelfNativeBridge {
     }
 
     @discardableResult
-    func restore() async -> Bool {
+    func restore(fallbackID: CGWindowID? = nil) async -> Bool {
         guard !busy else { return false }
         guard let saved = borrowed else { return true }
         guard NSRunningApplication(processIdentifier: saved.item.pid) != nil else {
@@ -76,12 +84,51 @@ final class MenuBarShelfNativeBridge {
         }
         busy = true
         defer { busy = false }
-        let restored = await move(id: saved.windowID, pid: saved.item.pid, beside: saved.successorID, right: false)
+        let successor = Self.windows().first { $0.id == saved.successorID }
+        let target = successor.map { Self.isOnScreen($0.frame) } == true ? saved.successorID : (fallbackID ?? saved.successorID)
+        let restored = await move(id: saved.windowID, pid: saved.item.pid, beside: target, right: false)
         if restored { borrowed = nil }
         return restored
     }
 
-    private func move(id: CGWindowID, pid: pid_t, beside targetID: CGWindowID, right: Bool) async -> Bool {
+    /// Move permanently for the named arrangement list. Commit only verified geometry.
+    func place(_ item: MenuBarShelfItem, anchor: CGRect, right: Bool) async -> Bool {
+        guard !busy, borrowed == nil, let frame = MenuBarShelfScanner.frame(item.element),
+              let source = Self.matching(frame, in: Self.windows()),
+              let target = Self.matching(anchor, in: Self.windows()) else { return false }
+        busy = true
+        defer { busy = false }
+        return await move(id: source.id, pid: item.pid, beside: target.id, right: right)
+    }
+
+    /// A verified native click also works for apps with custom status-button actions.
+    /// AXPress alone can report success without invoking those actions.
+    func clickBorrowed() async -> Bool {
+        guard !busy, let saved = borrowed, AXIsProcessTrusted(),
+              let window = Self.windows().first(where: { $0.id == saved.windowID }),
+              let primary = NSScreen.screens.first,
+              NSScreen.screens.contains(where: {
+                  CGRect(x: $0.frame.minX, y: primary.frame.maxY - $0.frame.maxY,
+                         width: $0.frame.width, height: $0.frame.height).contains(window.frame)
+              }),
+              let source = CGEventSource(stateID: .hidSystemState) else { return false }
+        busy = true
+        defer { busy = false }
+        let point = CGPoint(x: window.frame.midX, y: window.frame.midY)
+        guard let down = event(.leftMouseDown, point: point, window: window.id, pid: saved.item.pid, source: source, isMove: false),
+              let up = event(.leftMouseUp, point: point, window: window.id, pid: saved.item.pid, source: source, isMove: false) else { return false }
+        down.flags = []; up.flags = []
+        down.setIntegerValueField(.mouseEventClickState, value: 1)
+        up.setIntegerValueField(.mouseEventClickState, value: 0)
+        let cursor = CGEvent(source: nil)?.location
+        source.localEventsSuppressionInterval = 0
+        let delivered = await Relay.send(down, pid: saved.item.pid, redeliver: false)
+        let released = await Relay.send(up, pid: saved.item.pid, redeliver: false)
+        if let cursor { CGWarpMouseCursorPosition(cursor) }
+        return delivered && released
+    }
+
+    private func move(id: CGWindowID, pid: pid_t, beside targetID: CGWindowID, right: Bool, attempts: Int = 3) async -> Bool {
         guard AXIsProcessTrusted(), !Task.isCancelled else { return false }
         let windows = Self.windows()
         guard let item = windows.first(where: { $0.id == id }),
@@ -95,6 +142,7 @@ final class MenuBarShelfNativeBridge {
         guard let down = event(.leftMouseDown, point: start, window: id, pid: pid, source: source),
               let up = event(.leftMouseUp, point: end, window: targetID, pid: pid, source: source) else { return false }
         down.flags = .maskCommand
+        up.flags = []
         let cursor = CGEvent(source: nil)?.location
         source.localEventsSuppressionInterval = 0
         _ = await Relay.send(down, pid: pid)
@@ -116,18 +164,21 @@ final class MenuBarShelfNativeBridge {
             }
             if Task.isCancelled { return false }
         }
+        if attempts > 1 && !Task.isCancelled {
+            return await move(id: id, pid: pid, beside: targetID, right: right, attempts: attempts - 1)
+        }
         return false
     }
 
     private func event(_ type: CGEventType, point: CGPoint, window: CGWindowID,
-                       pid: pid_t, source: CGEventSource) -> CGEvent? {
+                       pid: pid_t, source: CGEventSource, isMove: Bool = true) -> CGEvent? {
         guard let event = CGEvent(mouseEventSource: source, mouseType: type,
                                   mouseCursorPosition: point, mouseButton: .left) else { return nil }
         event.setIntegerValueField(.eventTargetUnixProcessID, value: Int64(pid))
         event.setIntegerValueField(.eventSourceUserData, value: Int64.random(in: 1...Int64.max))
         event.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: Int64(window))
         event.setIntegerValueField(.mouseEventWindowUnderMousePointerThatCanHandleThisEvent, value: Int64(window))
-        if let windowField = CGEventField(rawValue: 0x33) {
+        if isMove, let windowField = CGEventField(rawValue: 0x33) {
             event.setIntegerValueField(windowField, value: Int64(window))
         }
         return event
@@ -140,13 +191,14 @@ final class MenuBarShelfNativeBridge {
         let event: CGEvent
         let pid: pid_t
         var phase = 0
+        let redeliver: Bool
         var taps: [CFMachPort] = []
         var sources: [CFRunLoopSource] = []
         var continuation: CheckedContinuation<Bool, Never>?
-        init(_ event: CGEvent, pid: pid_t) { self.event = event; self.pid = pid }
+        init(_ event: CGEvent, pid: pid_t, redeliver: Bool) { self.event = event; self.pid = pid; self.redeliver = redeliver }
 
-        @MainActor static func send(_ event: CGEvent, pid: pid_t) async -> Bool {
-            let relay = Relay(event, pid: pid)
+        @MainActor static func send(_ event: CGEvent, pid: pid_t, redeliver: Bool = true) async -> Bool {
+            let relay = Relay(event, pid: pid, redeliver: redeliver)
             return await withCheckedContinuation { continuation in
                 relay.continuation = continuation
                 relay.start()
@@ -179,7 +231,14 @@ final class MenuBarShelfNativeBridge {
                 if relay.phase == 1 && received.getIntegerValueField(.eventSourceUserData)
                     == relay.event.getIntegerValueField(.eventSourceUserData) {
                     relay.phase = 2
-                    relay.event.postToPid(relay.pid)
+                    received.setIntegerValueField(.eventTargetUnixProcessID, value: Int64(relay.pid))
+                    if relay.redeliver { relay.event.postToPid(relay.pid) }
+                    else {
+                        // Clicks must reach the app once. Reposting the real
+                        // event here can immediately toggle a custom menu shut.
+                        relay.phase = 3
+                        DispatchQueue.main.async { relay.finish(true) }
+                    }
                 }
                 return Unmanaged.passUnretained(received)
             }

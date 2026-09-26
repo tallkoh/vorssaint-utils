@@ -12,7 +12,7 @@ enum MenuBarShelfTests {
         suite.expect(view.contains("Button { service.openVorssaint() }") && service.contains("openPanelFromShelf(anchor: button, rect: rect)"),
                      "Vorssaint has a permanent direct action independent of hidden AX items")
         let recovery = app.components(separatedBy: "func reshowStatusItem() {").last?.components(separatedBy: "private var isReshowingStatusItem").first ?? ""
-        suite.expect((recovery.range(of: "MenuBarShelfService.shared.setArranging(true)")?.lowerBound ?? recovery.endIndex) < (recovery.range(of: "statusController?.recreateStatusItem()")?.lowerBound ?? recovery.startIndex),
+        suite.expect((recovery.range(of: "MenuBarShelfService.shared.revealForIconRecovery()")?.lowerBound ?? recovery.endIndex) < (recovery.range(of: "statusController?.recreateStatusItem()")?.lowerBound ?? recovery.startIndex),
                      "icon recovery expands our divider before rebuilding the app icon")
 
         suite.expect(MenuBarShelfSupport.stripHeight == 48, "tray stays one compact menu-bar-height row")
@@ -49,7 +49,7 @@ enum MenuBarShelfTests {
         suite.expect(AppFeature.menuBarShelf.permissions == [.accessibility], "only Accessibility is required")
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.menuBarShelf(language)
-            suite.expect(!strings.title.isEmpty && !strings.instructions.isEmpty && !strings.failed.isEmpty,
+            suite.expect(!strings.title.isEmpty && !strings.instructions.isEmpty && !strings.failed.isEmpty && !strings.keepVisible.isEmpty,
                          "shelf copy is present for \(language.rawValue)")
         }
     }

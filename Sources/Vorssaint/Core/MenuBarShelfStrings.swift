@@ -6,6 +6,7 @@ import Foundation
 struct MenuBarShelfStrings {
     let title: String
     let caption: String
+    let keepVisible: String
     let instructions: String
     let arrange: String
     let done: String
@@ -21,7 +22,8 @@ extension FeatureStrings {
         case .enUS: return MenuBarShelfStrings(
             title: "Menu bar shelf",
             caption: "Keep a few favourites visible and open the rest from a shelf.",
-            instructions: "Hold ⌘ and drag icons: left of │ goes in the shelf; right stays visible. Keep ⌄ on the right. Click Done to hide the divider.",
+            keepVisible: "Keep visible",
+            instructions: "Switch on the icons you want in the menu bar. The rest stay in the shelf. Hidden icons are listed here too.",
             arrange: "Arrange",
             done: "Done",
             search: "Find a menu bar item",
@@ -31,7 +33,8 @@ extension FeatureStrings {
         case .ptBR: return MenuBarShelfStrings(
             title: "Prateleira da barra de menus",
             caption: "Mantenha alguns favoritos visíveis e abra os demais na prateleira.",
-            instructions: "Segure ⌘ e arraste os ícones para a esquerda de │. Mantenha os favoritos e o botão da prateleira à direita. Ao terminar, abra a prateleira e escolha Concluído.",
+            keepVisible: "Manter visível",
+            instructions: "Ative os ícones que deseja na barra de menus. Os outros ficam na prateleira. Ícones ocultos também aparecem aqui.",
             arrange: "Organizar",
             done: "Concluído",
             search: "Buscar item da barra de menus",
@@ -41,7 +44,8 @@ extension FeatureStrings {
         case .es: return MenuBarShelfStrings(
             title: "Bandeja de la barra de menús",
             caption: "Mantén algunos favoritos visibles y abre los demás desde la bandeja.",
-            instructions: "Mantén ⌘ y arrastra los iconos a la izquierda de │. Deja los favoritos y el botón de la bandeja a la derecha. Abre la bandeja y pulsa Listo al terminar.",
+            keepVisible: "Mantener visible",
+            instructions: "Activa los iconos que quieres en la barra de menús. El resto queda en la bandeja. Aquí también aparecen los ocultos.",
             arrange: "Organizar",
             done: "Listo",
             search: "Buscar un elemento",
@@ -51,7 +55,8 @@ extension FeatureStrings {
         case .fr: return MenuBarShelfStrings(
             title: "Tiroir de la barre des menus",
             caption: "Gardez quelques favoris visibles et ouvrez les autres depuis le tiroir.",
-            instructions: "Maintenez ⌘ et glissez les icônes à gauche de │. Gardez vos favoris et le bouton du tiroir à droite. Ouvrez le tiroir et choisissez Terminé.",
+            keepVisible: "Garder visible",
+            instructions: "Activez les icônes à garder dans la barre des menus. Les autres restent dans le tiroir. Les icônes masquées figurent aussi ici.",
             arrange: "Organiser",
             done: "Terminé",
             search: "Rechercher un élément",
@@ -61,7 +66,8 @@ extension FeatureStrings {
         case .de: return MenuBarShelfStrings(
             title: "Menüleistenablage",
             caption: "Lassen Sie einige Favoriten sichtbar und öffnen Sie den Rest über die Ablage.",
-            instructions: "Halten Sie ⌘ und ziehen Sie Symbole links neben │. Favoriten und Ablagetaste bleiben rechts. Öffnen Sie danach die Ablage und wählen Sie Fertig.",
+            keepVisible: "Sichtbar lassen",
+            instructions: "Aktiviere die Symbole für die Menüleiste. Der Rest bleibt in der Ablage. Auch ausgeblendete Symbole stehen hier.",
             arrange: "Anordnen",
             done: "Fertig",
             search: "Menüleisteneintrag suchen",
@@ -71,7 +77,8 @@ extension FeatureStrings {
         case .it: return MenuBarShelfStrings(
             title: "Ripiano della barra dei menu",
             caption: "Tieni visibili alcuni preferiti e apri gli altri dal ripiano.",
-            instructions: "Tieni premuto ⌘ e trascina le icone a sinistra di │. Lascia i preferiti e il pulsante del ripiano a destra. Apri il ripiano e scegli Fine.",
+            keepVisible: "Mantieni visibile",
+            instructions: "Attiva le icone da tenere nella barra dei menu. Le altre restano nel ripiano. Qui trovi anche quelle nascoste.",
             arrange: "Organizza",
             done: "Fine",
             search: "Cerca una voce",
@@ -81,7 +88,8 @@ extension FeatureStrings {
         case .ru: return MenuBarShelfStrings(
             title: "Полка строки меню",
             caption: "Оставьте несколько избранных значков, а остальные открывайте с полки.",
-            instructions: "Удерживая ⌘, перетащите значки влево от │. Избранные значки и кнопку полки оставьте справа. Затем откройте полку и нажмите Готово.",
+            keepVisible: "Оставить видимым",
+            instructions: "Включите значки для строки меню. Остальные останутся на полке. Здесь показаны и скрытые значки.",
             arrange: "Упорядочить",
             done: "Готово",
             search: "Найти значок строки меню",
@@ -91,7 +99,8 @@ extension FeatureStrings {
         case .uk: return MenuBarShelfStrings(
             title: "Полиця рядка меню",
             caption: "Залиште кілька улюблених значків, а решту відкривайте з полиці.",
-            instructions: "Утримуючи ⌘, перетягніть значки ліворуч від │. Улюблені значки й кнопку полиці залиште праворуч. Потім відкрийте полицю та натисніть Готово.",
+            keepVisible: "Залишити видимим",
+            instructions: "Увімкніть значки для рядка меню. Решта залишиться на полиці. Тут також показано приховані значки.",
             arrange: "Упорядкувати",
             done: "Готово",
             search: "Знайти значок рядка меню",
@@ -101,7 +110,8 @@ extension FeatureStrings {
         case .sk: return MenuBarShelfStrings(
             title: "Polička lišty menu",
             caption: "Nechajte niekoľko obľúbených ikon viditeľných a ostatné otvárajte z poličky.",
-            instructions: "Podržte ⌘ a presuňte ikony naľavo od │. Obľúbené ikony a tlačidlo poličky nechajte napravo. Potom otvorte poličku a vyberte Hotovo.",
+            keepVisible: "Ponechať viditeľné",
+            instructions: "Zapnite ikony, ktoré chcete v lište. Ostatné zostanú na poličke. Sú tu aj skryté ikony.",
             arrange: "Usporiadať",
             done: "Hotovo",
             search: "Nájsť položku lišty menu",
@@ -111,7 +121,8 @@ extension FeatureStrings {
         case .tr: return MenuBarShelfStrings(
             title: "Menü çubuğu rafı",
             caption: "Birkaç favoriyi görünür tutun, diğerlerini raftan açın.",
-            instructions: "⌘ tuşunu basılı tutarak simgeleri │ işaretinin soluna sürükleyin. Favorileri ve raf düğmesini sağda bırakın. Ardından rafı açıp Bitti’yi seçin.",
+            keepVisible: "Görünür tut",
+            instructions: "Menü çubuğunda istediğiniz simgeleri açın. Diğerleri rafta kalır. Gizli simgeler de burada listelenir.",
             arrange: "Düzenle",
             done: "Bitti",
             search: "Menü çubuğu öğesi ara",
@@ -121,7 +132,8 @@ extension FeatureStrings {
         case .ja: return MenuBarShelfStrings(
             title: "メニューバーシェルフ",
             caption: "お気に入りだけを表示し、残りはシェルフから開きます。",
-            instructions: "⌘を押しながらアイコンを│の左にドラッグします。お気に入りとシェルフボタンは右に残してください。終わったらシェルフを開いて「完了」を選びます。",
+            keepVisible: "常に表示",
+            instructions: "メニューバーに表示するアイコンをオンにします。残りはシェルフに入ります。隠れたアイコンもここに表示されます。",
             arrange: "並べ替え",
             done: "完了",
             search: "メニューバー項目を検索",
@@ -131,7 +143,8 @@ extension FeatureStrings {
         case .ko: return MenuBarShelfStrings(
             title: "메뉴 막대 선반",
             caption: "즐겨찾기 몇 개만 표시하고 나머지는 선반에서 여세요.",
-            instructions: "⌘를 누른 채 아이콘을 │ 왼쪽으로 드래그하세요. 즐겨찾기와 선반 버튼은 오른쪽에 두세요. 마치면 선반을 열고 완료를 선택하세요.",
+            keepVisible: "계속 표시",
+            instructions: "메뉴 막대에 표시할 아이콘을 켜세요. 나머지는 선반에 남습니다. 숨겨진 아이콘도 여기에 표시됩니다.",
             arrange: "정렬",
             done: "완료",
             search: "메뉴 막대 항목 검색",
@@ -141,7 +154,8 @@ extension FeatureStrings {
         case .zhHans: return MenuBarShelfStrings(
             title: "菜单栏收纳架",
             caption: "保留几个常用图标，其余从收纳架打开。",
-            instructions: "按住 ⌘ 将图标拖到 │ 左侧。常用图标和收纳架按钮留在右侧。完成后打开收纳架并选择「完成」。",
+            keepVisible: "保持可见",
+            instructions: "开启要保留在菜单栏中的图标，其余图标放在托盘中。隐藏的图标也会列在这里。",
             arrange: "整理",
             done: "完成",
             search: "搜索菜单栏项目",
@@ -151,7 +165,8 @@ extension FeatureStrings {
         case .zhTW: return MenuBarShelfStrings(
             title: "選單列收納架",
             caption: "保留幾個常用圖示，其餘從收納架開啟。",
-            instructions: "按住 ⌘ 將圖示拖到 │ 左側。常用圖示與收納架按鈕留在右側。結束後開啟收納架並選擇「完成」。",
+            keepVisible: "保持顯示",
+            instructions: "開啟要保留在選單列的圖像，其餘圖像放在托盤中。隱藏的圖像也會列在這裡。",
             arrange: "整理",
             done: "完成",
             search: "搜尋選單列項目",
@@ -161,7 +176,8 @@ extension FeatureStrings {
         case .zhHK: return MenuBarShelfStrings(
             title: "選單列收納架",
             caption: "保留幾個常用圖像，其餘從收納架開啟。",
-            instructions: "按住 ⌘ 將圖像拖到 │ 左邊。常用圖像和收納架按鈕留在右邊。完成後開啟收納架並選擇「完成」。",
+            keepVisible: "保持顯示",
+            instructions: "開啟要保留在選單列的圖示，其餘圖示放在托盤中。隱藏的圖示也會列在這裡。",
             arrange: "整理",
             done: "完成",
             search: "搜尋選單列項目",

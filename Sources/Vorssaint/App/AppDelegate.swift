@@ -1677,7 +1677,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // Reveal the shelf boundary before recovery, so our own divider cannot
         // immediately hide the rebuilt icon and produce a false failure alert.
         if AppFeature.menuBarShelf.isAvailable, MenuBarShelfService.shared.isRunning {
-            MenuBarShelfService.shared.setArranging(true)
+            MenuBarShelfService.shared.revealForIconRecovery()
         }
         // The button is an explicit "I want the icon back": neither hiding
         // option may immediately re-hide what the user just asked to see

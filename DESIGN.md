@@ -11,3 +11,7 @@ arrange, refresh, and Settings. The main dropdown and Settings show setup instru
 The shelf and main menu panel are mutually exclusive. Width follows item count,
 so a single item never occupies an oversized panel. Preserve keyboard focus and
 native menu actions. Explicit failure feedback is more important than decoration.
+
+Arrangement is a scrollable list of detected apps with Keep visible switches.
+It includes offscreen items; never require dragging something the user cannot
+see. Only the chevron is a normal visible shelf control.

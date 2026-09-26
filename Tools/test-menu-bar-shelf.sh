@@ -30,6 +30,14 @@ swiftc Tests/Fixtures/MenuBarShelfFixture.swift -o "$fixture_app/Contents/MacOS/
 swiftc Sources/Vorssaint/Services/MenuBarShelf/MenuBarShelfScanner.swift \
     Sources/Vorssaint/Services/MenuBarShelf/MenuBarShelfNativeBridge.swift \
     Tests/Fixtures/MenuBarShelfSmoke.swift -o "$fixture_root/MenuBarShelfSmoke"
-"$fixture_app/Contents/MacOS/Fixture" > "$fixture_root/fixture.log" 2>&1 &
-fixture_pid=$!
-"$fixture_root/MenuBarShelfSmoke" "$fixture_pid"
+for mode in --menu --custom; do
+    "$fixture_app/Contents/MacOS/Fixture" "$mode" > "$fixture_root/fixture.log" 2>&1 &
+    fixture_pid=$!
+    if ! "$fixture_root/MenuBarShelfSmoke" "$fixture_pid" "$mode"; then
+        cat "$fixture_root/fixture.log"
+        exit 1
+    fi
+    kill "$fixture_pid" 2>/dev/null || true
+    wait "$fixture_pid" 2>/dev/null || true
+    fixture_pid=""
+done

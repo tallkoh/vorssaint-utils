@@ -91,9 +91,13 @@ struct MenuBarShelfSettings: View {
                     Text(l10n.s.permissionAccessibility)
                         .font(.caption).foregroundStyle(.secondary)
                     Button(l10n.s.permissionRequest) { permissions.requestAccessibility() }
-                } else {
-                    Text(text.instructions)
+                    Text(FeatureStrings.permissionGuide(l10n.language).staleHint)
                         .font(.caption).foregroundStyle(.secondary)
+                    Button(FeatureStrings.permissionGuide(l10n.language).startOver) {
+                        permissions.startOver(.accessibility)
+                    }
+                } else {
+                    if service.arranging { MenuBarShelfArrangementList(service: service) }
                     if let error = service.error {
                         Text(error).font(.caption).foregroundStyle(.orange)
                     }
@@ -131,13 +135,51 @@ struct MenuBarShelfPanelControls: View {
                 }
             }
             if service.arranging {
-                Text(text.instructions).font(.system(size: 12)).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                MenuBarShelfArrangementList(service: service)
             } else if enabled && service.isRunning {
                 Button(text.open) { service.toggle() }.font(.system(size: 12))
             }
         }
         .padding(10)
         .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+struct MenuBarShelfArrangementList: View {
+    @ObservedObject var service: MenuBarShelfService
+    @ObservedObject private var l10n = L10n.shared
+    private var text: MenuBarShelfStrings { FeatureStrings.menuBarShelf(l10n.language) }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(text.instructions).font(.system(size: 12)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if service.loading && service.arrangementItems.isEmpty {
+                ProgressView().controlSize(.small)
+            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(service.arrangementItems) { item in
+                        HStack(spacing: 8) {
+                            Image(nsImage: item.applicationURL.map { NSWorkspace.shared.icon(forFile: $0.path) }
+                                  ?? NSImage(systemSymbolName: "menubar.rectangle", accessibilityDescription: nil)!)
+                                .resizable().scaledToFit().frame(width: 18, height: 18)
+                            Text(item.name).font(.system(size: 12)).lineLimit(2)
+                            Spacer(minLength: 4)
+                            Toggle(text.keepVisible, isOn: Binding(
+                                get: { service.visibleItemIDs.contains(item.id) },
+                                set: { service.keepVisible($0, item: item) }))
+                                .labelsHidden().toggleStyle(.switch).controlSize(.mini)
+                                .accessibilityLabel(item.name + " — " + text.keepVisible)
+                                .help(text.keepVisible).disabled(service.placingItem)
+                        }
+                        .padding(.vertical, 3)
+                    }
+                }
+            }
+            .frame(height: min(210, CGFloat(max(1, service.arrangementItems.count)) * 34))
+            if let error = service.error {
+                Text(error).font(.caption).foregroundStyle(.orange)
+            }
+        }
     }
 }

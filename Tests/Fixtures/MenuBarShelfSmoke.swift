@@ -45,19 +45,29 @@ struct MenuBarShelfSmoke {
                 var actions: CFArray?
                 AXUIElementCopyActionNames(item.element, &actions)
                 print("Fixture actions: \(actions as Any)")
-                // Run AX off the main thread: menu tracking must keep pumping.
-                let pressed = await withCheckedContinuation { continuation in
-                    DispatchQueue.global().async {
-                        continuation.resume(returning: AXUIElementPerformAction(item.element, kAXPressAction as CFString))
-                    }
-                }
+                let pressed = await bridge.clickBorrowed()
                 try await Task.sleep(for: .milliseconds(350))
                 let children = MenuBarShelfScanner.attribute(item.element, kAXChildrenAttribute) as? [AXUIElement] ?? []
                 let menu = children.first { MenuBarShelfScanner.attribute($0, kAXRoleAttribute) as? String == kAXMenuRole }
-                let menuFrame = menu.flatMap(MenuBarShelfScanner.frame)
+                let custom = CommandLine.arguments.contains("--custom")
+                let fixtureAX = AXUIElementCreateApplication(pid)
+                let fixtureWindows = MenuBarShelfScanner.attribute(fixtureAX, kAXWindowsAttribute) as? [AXUIElement] ?? []
+                let panel = fixtureWindows.first { MenuBarShelfScanner.attribute($0, kAXTitleAttribute) as? String == "Shelf fixture panel" }
+                let nativePanels = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
+                let nativePanelFrame = nativePanels.compactMap { info -> CGRect? in
+                    guard (info[kCGWindowOwnerPID as String] as? pid_t) == pid,
+                          (info[kCGWindowLayer as String] as? Int) == 0,
+                          let bounds = info[kCGWindowBounds as String] as? [String: Any] else { return nil }
+                    return CGRect(dictionaryRepresentation: bounds as CFDictionary)
+                }.first { $0.width >= 200 && $0.height >= 100 }
+                let menuFrame = custom ? nativePanelFrame : menu.flatMap(MenuBarShelfScanner.frame)
                 let visible = menuFrame.map { $0.width > 0 && $0.minX >= 0 && $0.minY >= 0 && $0.minY < screen.frame.height } ?? false
-                print("Native press result: \(pressed.rawValue); visible menu: \(visible); frame: \(String(describing: menuFrame))")
-                if let menu {
+                print("Native press result: \(pressed); visible menu: \(visible); frame: \(String(describing: menuFrame))")
+                if custom, let panel,
+                   let close = MenuBarShelfScanner.attribute(panel, kAXCloseButtonAttribute) {
+                    _ = AXUIElementPerformAction(close as! AXUIElement, kAXPressAction as CFString)
+                }
+                if !custom, let menu {
                     var menuActions: CFArray?
                     AXUIElementCopyActionNames(menu, &menuActions)
                     print("Menu actions: \(menuActions as Any)")

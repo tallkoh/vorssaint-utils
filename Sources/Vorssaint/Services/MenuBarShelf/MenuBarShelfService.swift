@@ -12,6 +12,9 @@ import SwiftUI
 final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, @unchecked Sendable {
     static let shared = MenuBarShelfService()
     @Published private(set) var items: [MenuBarShelfItem] = []
+    @Published private(set) var arrangementItems: [MenuBarShelfItem] = []
+    @Published private(set) var visibleItemIDs: Set<String> = []
+    @Published private(set) var placingItem = false
     @Published private(set) var arranging = false
     @Published private(set) var loading = false
     @Published private(set) var error: String?
@@ -61,7 +64,7 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
         launcher = buttonItem
         let separator = NSStatusBar.system.statusItem(withLength: 20)
         separator.autosaveName = "MenuBarShelfDivider"
-        separator.button?.title = "│"
+        separator.button?.title = ""
         separator.button?.toolTip = FeatureStrings.menuBarShelf(L10n.shared.language).instructions
         separator.button?.target = self
         separator.button?.action = #selector(toggle)
@@ -78,7 +81,9 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
         DispatchQueue.main.async { [weak self] in
             guard let self, self.launcher != nil else { return }
             self.captureDividerFrame()
-            if self.arranging { self.openVorssaint() } else { self.collapse() }
+            self.collapse()
+            if self.arranging { self.openVorssaint() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.refresh() }
         }
     }
 
@@ -99,10 +104,13 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
         observers.removeAll()
         let oldDivider = divider
         let oldLauncher = launcher
+        let oldDividerID = dividerWindowID
         // Keep the original neighbour alive until a borrowed item has returned.
         Task { @MainActor [nativeBridge] in
             await pendingInteraction?.value
-            _ = await nativeBridge.restore()
+            oldDivider?.length = 20
+            try? await Task.sleep(for: .milliseconds(350))
+            _ = await nativeBridge.restore(fallbackID: oldDividerID)
             if let oldDivider { NSStatusBar.system.removeStatusItem(oldDivider) }
             if let oldLauncher { NSStatusBar.system.removeStatusItem(oldLauncher) }
         }
@@ -124,7 +132,7 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
         interactionTask?.cancel()
         interactionTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            _ = await self.nativeBridge.restore()
+            _ = await self.restoreBorrowed()
             guard !Task.isCancelled, self.launcher != nil else { return }
             self.refresh()
             self.presentShelf(button: button)
@@ -182,14 +190,20 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
         arranging = enabled
         error = nil
         if enabled {
-            divider?.length = 20
             popover.close()
+            collapse()
+            refresh()
         } else {
             captureDividerFrame()
             UserDefaults.standard.set(true, forKey: DefaultsKey.menuBarShelfConfigured)
             collapse()
             refresh()
         }
+    }
+
+    func revealForIconRecovery() {
+        setArranging(true)
+        divider?.length = 20
     }
 
     private func nativeFrame(for item: NSStatusItem?, name: String, cache: inout CGWindowID?) -> CGRect? {
@@ -215,7 +229,7 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
     }
 
     private func collapse() {
-        guard !arranging, let divider else { return }
+        guard let divider else { return }
         divider.length = MenuBarShelfSupport.collapsedLength(screenWidths: NSScreen.screens.map { $0.frame.width })
     }
 
@@ -259,6 +273,8 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
             }
             DispatchQueue.main.async {
                 guard let self, self.generation == request, self.launcher != nil else { return }
+                self.arrangementItems = result.filter { MenuBarShelfNativeBridge.matching($0.frame, in: nativeWindows) != nil }
+                self.visibleItemIDs = Set(self.arrangementItems.map(\.id)).subtracting(hidden.map(\.id))
                 self.items = hidden
                 self.loading = false
                 self.popover.contentSize = NSSize(width: MenuBarShelfSupport.stripWidth(itemCount: hidden.count) + 102,
@@ -267,31 +283,51 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
         }
     }
 
-    func open(_ item: MenuBarShelfItem) {
-        guard AppFeature.menuBarShelf.isAvailable, launcher != nil, AXIsProcessTrusted(),
-              let anchor = nativeFrame(for: launcher, name: "MenuBarShelfLauncher", cache: &launcherWindowID) else { return }
-        popover.close()
+    func keepVisible(_ visible: Bool, item: MenuBarShelfItem) {
+        guard !placingItem else { return }
+        guard AXIsProcessTrusted() else { Permissions.shared.refresh(); showSettings(); return }
+        placingItem = true
+        returnTask?.cancel()
         interactionTask?.cancel()
         interactionTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            defer { self.placingItem = false }
+            guard await self.restoreBorrowed(), !Task.isCancelled else { self.showOpenError(); return }
+            let length = self.divider?.length
+            self.divider?.length = 20
+            defer { if let length { self.divider?.length = length } }
+            try? await Task.sleep(for: .milliseconds(350))
+            guard let anchor = visible
+                    ? self.nativeFrame(for: self.launcher, name: "MenuBarShelfLauncher", cache: &self.launcherWindowID)
+                    : self.nativeFrame(for: self.divider, name: "MenuBarShelfDivider", cache: &self.dividerWindowID)
+            else { self.showOpenError(); return }
+            let moved = await self.nativeBridge.place(item, anchor: anchor, right: visible)
+            if let length { self.divider?.length = length }
+            try? await Task.sleep(for: .milliseconds(350))
+            if moved { self.refresh() }
+            else { self.error = FeatureStrings.menuBarShelf(L10n.shared.language).failed }
+        }
+    }
+
+    func open(_ item: MenuBarShelfItem) {
+        guard AppFeature.menuBarShelf.isAvailable, launcher != nil else { return }
+        guard AXIsProcessTrusted() else { Permissions.shared.refresh(); showSettings(); return }
+        guard let anchor = nativeFrame(for: launcher, name: "MenuBarShelfLauncher", cache: &launcherWindowID)
+        else { showOpenError(); return }
+        popover.close()
+        returnTask?.cancel()
+        interactionTask?.cancel()
+        interactionTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard await self.restoreBorrowed(), !Task.isCancelled else { self.showOpenError(); return }
             let revealed = await self.nativeBridge.reveal(item, anchor: anchor)
             guard !Task.isCancelled, self.launcher != nil else { return }
             guard revealed else { self.showOpenError(); return }
-            // The native item is now physically beside the shelf, so both
-            // NSMenu and custom popovers receive a real, visible anchor.
             let baseline = Self.visibleWindows(for: item.pid)
-            self.scanQueue.async { [weak self] in
-                let result = AXUIElementPerformAction(item.element, kAXPressAction as CFString)
-                // AppKit's menu tracking can outlive the AX messaging timeout.
-                // A visible menu is evidence of success even when AX times out.
-                let menuOpen = MenuBarShelfScanner.hasOpenMenu(item.element)
-                let presentedWindow = !Self.visibleWindows(for: item.pid).subtracting(baseline).isEmpty
-                DispatchQueue.main.async {
-                    guard let self, self.launcher != nil else { return }
-                    if result != .success && !menuOpen && !presentedWindow { self.showOpenError() }
-                    self.returnAfterDismissal(item, baseline: baseline)
-                }
-            }
+            let clicked = await self.nativeBridge.clickBorrowed()
+            guard !Task.isCancelled else { return }
+            if !clicked { self.showOpenError() }
+            self.returnAfterDismissal(item, baseline: baseline)
         }
     }
 
@@ -318,7 +354,7 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
                 }
                 guard !Task.isCancelled else { return }
                 if !menuOpen && Self.visibleWindows(for: item.pid).subtracting(baseline).isEmpty {
-                    _ = await self.nativeBridge.restore()
+                    _ = await self.restoreBorrowed()
                     return
                 }
                 try? await Task.sleep(for: .milliseconds(500))
@@ -328,11 +364,22 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, 
         }
     }
 
+    /// A return destination must be reachable too. Expanding only for the move
+    /// avoids sending a drag to a negative/offscreen coordinate on real apps.
+    @MainActor private func restoreBorrowed() async -> Bool {
+        guard nativeBridge.borrowed != nil else { return true }
+        let length = divider?.length
+        divider?.length = 20
+        defer { if let length { divider?.length = length } }
+        try? await Task.sleep(for: .milliseconds(350))
+        return await nativeBridge.restore(fallbackID: dividerWindowID)
+    }
+
     @MainActor func restoreBeforeTermination() async {
         returnTask?.cancel()
         interactionTask?.cancel()
         await interactionTask?.value
-        _ = await nativeBridge.restore()
+        _ = await restoreBorrowed()
     }
 
     private func showOpenError() {
