@@ -250,6 +250,8 @@ if (( TEST )); then
     TEST_OBJECT_DIR="build/objects/tests"
     mkdir -p "$TEST_OBJECT_DIR"
     TEST_SOURCES=(
+        Sources/Vorssaint/Services/MenuBarShelf/MenuBarShelfScanner.swift
+        Sources/Vorssaint/Services/MenuBarShelf/MenuBarShelfNativeBridge.swift
         Sources/Vorssaint/Services/MenuBarShelf/MenuBarShelfSupport.swift
         Sources/Vorssaint/Core/MenuBarShelfStrings.swift
         Sources/Vorssaint/Services/Media/MediaSupport.swift

@@ -1787,7 +1787,7 @@ enum FeatureCatalogTests {
                "every feature anchor belongs to its destination page")
         suite.expect(Set(AppFeature.allCases.compactMap(\.settingsDestination.sectionAnchor))
                 == Set(SettingsSectionAnchor.allCases).subtracting([
-                    .panelConfiguration, .keyboardBrightnessShortcuts,
+                    .keyboardBrightnessShortcuts,
                 ])
                 && SettingsSectionAnchor.panelConfiguration.page == .general
                 && SettingsSectionAnchor.keyboardBrightnessShortcuts.page == .shortcuts,

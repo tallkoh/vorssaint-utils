@@ -8,6 +8,14 @@ enum MenuBarShelfTests {
         suite.expect(MenuBarShelfSupport.stripHeight == 48, "tray stays one compact menu-bar-height row")
         suite.expect(MenuBarShelfSupport.stripWidth(itemCount: 1) == 32, "one icon never leaves an empty card grid")
         suite.expect(MenuBarShelfSupport.stripWidth(itemCount: 40) == 356, "overflow scrolls horizontally instead of growing the panel")
+        let windowFrame = CGRect(x: 1200, y: 0, width: 38, height: 33)
+        let window = MenuBarShelfNativeBridge.Window(id: 42, frame: windowFrame)
+        suite.expect(MenuBarShelfNativeBridge.matching(CGRect(x: 1199, y: 4.5, width: 40, height: 24), in: [window])?.id == 42,
+                     "Tahoe AX inset maps to the original hosted native window")
+        suite.expect(MenuBarShelfNativeBridge.matching(windowFrame, in: [window, window]) == nil,
+                     "ambiguous windows cannot receive a synthetic event")
+        suite.expect(MenuBarShelfNativeBridge.matching(CGRect(x: 1100, y: 0, width: 38, height: 33), in: [window]) == nil,
+                     "stale geometry cannot select a neighbouring item")
         let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
         let divider = CGRect(x: 1100, y: 0, width: 20, height: 33)
         let cases: [(String, CGRect, Bool)] = [

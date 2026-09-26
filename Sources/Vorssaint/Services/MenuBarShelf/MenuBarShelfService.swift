@@ -9,12 +9,16 @@ import SwiftUI
 /// The divider's native position persists through AppKit's autosaveName.
 /// Expanding it pushes items on its left out of the menu bar; the separate
 /// shelf button stays on its right. Removing it restores the bar, even on crash.
-final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate {
+final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate, @unchecked Sendable {
     static let shared = MenuBarShelfService()
     @Published private(set) var items: [MenuBarShelfItem] = []
     @Published private(set) var arranging = false
     @Published private(set) var loading = false
     @Published private(set) var error: String?
+    private let nativeBridge = MenuBarShelfNativeBridge()
+    private var interactionTask: Task<Void, Never>?
+    private var launcherWindowID: CGWindowID?
+    private var dividerWindowID: CGWindowID?
     private var divider: NSStatusItem?
     private var launcher: NSStatusItem?
     private let popover = NSPopover()
@@ -38,6 +42,14 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate {
               UserDefaults.standard.bool(forKey: DefaultsKey.menuBarShelfEnabled),
               AXIsProcessTrusted() else { stop(); return }
         guard launcher == nil else { return }
+        // Reserve a reachable slot near the system controls on first use.
+        // Without this, the manager's own button can start behind the notch.
+        for (name, position) in [("MenuBarShelfLauncher", 0), ("MenuBarShelfDivider", 1)] {
+            let key = "NSStatusItem Preferred Position \(name)"
+            if UserDefaults.standard.object(forKey: key) == nil {
+                UserDefaults.standard.set(position, forKey: key)
+            }
+        }
         // Create launcher first; subsequent items appear to its left by default.
         let buttonItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         buttonItem.autosaveName = "MenuBarShelfLauncher"
@@ -71,6 +83,8 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate {
 
     func stop() {
         generation += 1
+        interactionTask?.cancel()
+        interactionTask = nil
         collapseWork?.cancel()
         collapseWork = nil
         popover.close()
@@ -84,19 +98,41 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate {
         divider = nil
         launcher = nil
         expandedDividerFrame = nil
+        launcherWindowID = nil
+        dividerWindowID = nil
         items = []
         arranging = false
         loading = false
     }
 
     @objc func toggle() {
+        NSLog("Shelf toggle: available=%d trusted=%d launcher=%d shown=%d", AppFeature.menuBarShelf.isAvailable, AXIsProcessTrusted(), launcher != nil, popover.isShown)
         guard AppFeature.menuBarShelf.isAvailable, AXIsProcessTrusted(), let button = launcher?.button else { return }
         if popover.isShown { popover.close(); return }
-        refresh()
+        interactionTask?.cancel()
+        interactionTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            _ = await self.nativeBridge.restore()
+            guard !Task.isCancelled, self.launcher != nil else { return }
+            self.refresh()
+            self.presentShelf(button: button)
+        }
+    }
+
+    private func presentShelf(button: NSStatusBarButton) {
+        NSLog("Shelf present: %@", NSStringFromRect(button.window?.frame ?? .zero))
         // A shelf and the main panel are mutually exclusive surfaces.
         let show = { [weak self, weak button] in
             guard let self, let button, self.launcher != nil else { return }
-            self.popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            var rect = button.bounds
+            if let current = self.nativeFrame(for: self.launcher, name: "MenuBarShelfLauncher", cache: &self.launcherWindowID),
+               let reported = button.window?.frame {
+                rect.origin.x += current.midX - reported.midX
+            }
+            self.popover.contentSize = NSSize(width: MenuBarShelfSupport.stripWidth(itemCount: self.items.count) + 64, height: MenuBarShelfSupport.stripHeight)
+            self.popover.show(relativeTo: rect, of: button, preferredEdge: .minY)
+            self.popover.contentViewController?.view.window?.makeKey()
+            NSLog("Shelf shown=%d size=%@", self.popover.isShown, NSStringFromSize(self.popover.contentSize))
         }
         if let delegate = NSApp.delegate as? AppDelegate {
             delegate.closePopover(animated: false, completion: show)
@@ -127,12 +163,26 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate {
         }
     }
 
+    private func nativeFrame(for item: NSStatusItem?, name: String, cache: inout CGWindowID?) -> CGRect? {
+        let windows = MenuBarShelfNativeBridge.windows()
+        if let cached = cache, let window = windows.first(where: { $0.id == cached }) { return window.frame }
+        // Titles are available when screen capture was already granted. They
+        // are an optional aid; geometry alone works with Accessibility access.
+        let named = windows.filter { $0.title == name }
+        if named.count == 1 { cache = named[0].id; return named[0].frame }
+        guard let frame = item?.button?.window?.frame, let primary = NSScreen.screens.first else { return nil }
+        let converted = CGRect(x: frame.minX, y: primary.frame.maxY - frame.maxY,
+                               width: frame.width, height: frame.height)
+        if let native = MenuBarShelfNativeBridge.matching(converted, in: windows) {
+            cache = native.id
+            return native.frame
+        }
+        return nil
+    }
+
     private func captureDividerFrame() {
-        guard let window = divider?.button?.window,
-              let primary = NSScreen.screens.first else { return }
-        let f = window.frame
-        expandedDividerFrame = CGRect(x: f.minX, y: primary.frame.maxY - f.maxY,
-                                      width: f.width, height: f.height)
+        expandedDividerFrame = nativeFrame(for: divider, name: "MenuBarShelfDivider", cache: &dividerWindowID)
+        _ = nativeFrame(for: launcher, name: "MenuBarShelfLauncher", cache: &launcherWindowID)
     }
 
     private func collapse() {
@@ -157,7 +207,7 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate {
 
     func refresh() {
         guard AppFeature.menuBarShelf.isAvailable, launcher != nil, AXIsProcessTrusted() else { stop(); return }
-        if arranging { captureDividerFrame() }
+        captureDividerFrame()
         guard let boundary = expandedDividerFrame,
               let primary = NSScreen.screens.first,
               let screen = launcher?.button?.window?.screen ?? NSScreen.main else { return }
@@ -168,37 +218,51 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate {
         }
         generation += 1
         let request = generation
+        let nativeWindows = MenuBarShelfNativeBridge.windows()
         let ownPID = ProcessInfo.processInfo.processIdentifier
         loading = true
         error = nil
         scanQueue.async { [weak self] in
             let result = MenuBarShelfScanner.scan(applications: apps, ownPID: ownPID)
-            let hidden = result.filter { MenuBarShelfSupport.belongsInShelf(item: $0.frame, divider: boundary, screen: screenRect) }
+            let hidden = result.filter {
+                MenuBarShelfNativeBridge.matching($0.frame, in: nativeWindows) != nil
+                    && MenuBarShelfSupport.belongsInShelf(item: $0.frame, divider: boundary, screen: screenRect)
+            }
             DispatchQueue.main.async {
                 guard let self, self.generation == request, self.launcher != nil else { return }
                 self.items = hidden
                 self.loading = false
+                self.popover.contentSize = NSSize(width: MenuBarShelfSupport.stripWidth(itemCount: hidden.count) + 64,
+                                                 height: MenuBarShelfSupport.stripHeight)
             }
         }
     }
 
     func open(_ item: MenuBarShelfItem) {
-        guard AppFeature.menuBarShelf.isAvailable, launcher != nil, AXIsProcessTrusted() else { stop(); return }
+        guard AppFeature.menuBarShelf.isAvailable, launcher != nil, AXIsProcessTrusted(),
+              let anchor = nativeFrame(for: launcher, name: "MenuBarShelfLauncher", cache: &launcherWindowID) else { return }
         popover.close()
-        // AXPress targets the real item; no guessed screen coordinates and no
-        // synthetic click sent to whichever app happens to sit underneath it.
-        scanQueue.async { [weak self] in
-            let result = AXUIElementPerformAction(item.element, kAXPressAction as CFString)
-            DispatchQueue.main.async {
-                guard let self, self.launcher != nil else { return }
-                if result != .success {
-                    self.error = FeatureStrings.menuBarShelf(L10n.shared.language).failed
-                    if let button = self.launcher?.button {
-                        self.popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-                    }
+        interactionTask?.cancel()
+        interactionTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let revealed = await self.nativeBridge.reveal(item, anchor: anchor)
+            guard !Task.isCancelled, self.launcher != nil else { return }
+            guard revealed else { self.showOpenError(); return }
+            // The native item is now physically beside the shelf, so both
+            // NSMenu and custom popovers receive a real, visible anchor.
+            self.scanQueue.async { [weak self] in
+                let result = AXUIElementPerformAction(item.element, kAXPressAction as CFString)
+                DispatchQueue.main.async {
+                    guard let self, self.launcher != nil else { return }
+                    if result != .success { self.showOpenError() }
                 }
             }
         }
+    }
+
+    private func showOpenError() {
+        error = FeatureStrings.menuBarShelf(L10n.shared.language).failed
+        if let button = launcher?.button { presentShelf(button: button) }
     }
 
     func popoverDidClose(_ notification: Notification) {
