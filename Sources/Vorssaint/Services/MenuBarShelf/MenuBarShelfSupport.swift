@@ -6,6 +6,12 @@ import Foundation
 /// Keep the membership decision independent of Accessibility and AppKit.
 /// Native menu-bar order is the source of truth; no fragile PID/title preferences.
 enum MenuBarShelfSupport {
+    static let stripHeight: CGFloat = 48
+
+    static func stripWidth(itemCount: Int) -> CGFloat {
+        min(356, max(32, CGFloat(max(0, itemCount)) * 36 - 4))
+    }
+
     static func belongsInShelf(item: CGRect, divider: CGRect, screen: CGRect) -> Bool {
         guard item.width > 0, item.height > 0, divider.width > 0 else { return false }
         // AppKit reports an offscreen sentinel at the bottom of the display for

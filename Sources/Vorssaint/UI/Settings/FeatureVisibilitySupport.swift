@@ -290,7 +290,7 @@ extension AppFeature {
             return FeatureSettingsDestination(.cutPaste, sectionAnchor: .finderCutPaste)
         case .finderRename:
             return FeatureSettingsDestination(.cutPaste, sectionAnchor: .finderRename)
-        case .menuBarShelf: return FeatureSettingsDestination(.general)
+        case .menuBarShelf: return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
         case .shelf: return FeatureSettingsDestination(.shelf)
         case .urlCleaner: return FeatureSettingsDestination(.urlCleaner)
         case .diskImageInstaller: return FeatureSettingsDestination(.features)

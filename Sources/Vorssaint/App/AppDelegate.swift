@@ -430,6 +430,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func togglePopover(anchor button: NSStatusBarButton? = nil) {
+        if AppFeature.menuBarShelf.isAvailable { MenuBarShelfService.shared.dismiss() }
         if popover.isShown {
             closePopover()
             return

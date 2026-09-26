@@ -5,6 +5,9 @@ import Foundation
 
 enum MenuBarShelfTests {
     static func run(_ suite: TestSuite) {
+        suite.expect(MenuBarShelfSupport.stripHeight == 48, "tray stays one compact menu-bar-height row")
+        suite.expect(MenuBarShelfSupport.stripWidth(itemCount: 1) == 32, "one icon never leaves an empty card grid")
+        suite.expect(MenuBarShelfSupport.stripWidth(itemCount: 40) == 356, "overflow scrolls horizontally instead of growing the panel")
         let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
         let divider = CGRect(x: 1100, y: 0, width: 20, height: 33)
         let cases: [(String, CGRect, Bool)] = [

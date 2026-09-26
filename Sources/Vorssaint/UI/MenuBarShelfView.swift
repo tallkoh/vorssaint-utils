@@ -4,65 +4,62 @@
 import AppKit
 import SwiftUI
 
+/// The shelf is deliberately only a single strip. Setup and explanatory copy
+/// live in Settings so this transient surface cannot grow into a second panel.
 struct MenuBarShelfView: View {
     @ObservedObject var service: MenuBarShelfService
     @ObservedObject private var l10n = L10n.shared
+    @State private var hovered: String?
     private var text: MenuBarShelfStrings { FeatureStrings.menuBarShelf(l10n.language) }
-    @State private var search = ""
-    private var filtered: [MenuBarShelfItem] {
-        service.items.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
-    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Label(text.title, systemImage: "square.grid.2x2").font(.headline)
-                Spacer()
-                Button { service.refresh() } label: { Image(systemName: "arrow.clockwise") }
-                    .help(l10n.s.homebrewRefresh).accessibilityLabel(l10n.s.homebrewRefresh)
-                Button(service.arranging ? text.done : text.arrange) { service.setArranging(!service.arranging) }
-            }
-            if service.arranging {
-                Text(text.instructions)
-                    .font(.callout).foregroundStyle(.secondary)
-            }
-            TextField(text.search, text: $search)
-                .textFieldStyle(.roundedBorder)
-            if service.loading {
-                ProgressView().controlSize(.small)
-                    .frame(maxWidth: .infinity, minHeight: 90)
-            } else if filtered.isEmpty {
-                Text(text.empty)
-                    .foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 90)
+        HStack(spacing: 6) {
+            if service.loading && service.items.isEmpty {
+                ProgressView().controlSize(.small).frame(width: 30, height: 30)
+            } else if service.items.isEmpty {
+                Button(text.arrange) { service.showSettings() }
+                    .buttonStyle(.plain).font(.system(size: 12))
+                    .padding(.horizontal, 10)
             } else {
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 94, maximum: 116))], spacing: 10) {
-                        ForEach(filtered) { item in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 4) {
+                        ForEach(service.items) { item in
                             Button { service.open(item) } label: {
-                                VStack(spacing: 8) {
-                                    Image(nsImage: item.applicationURL.map { NSWorkspace.shared.icon(forFile: $0.path) }
-                                          ?? NSImage(systemSymbolName: "menubar.rectangle", accessibilityDescription: nil)!)
-                                        .resizable().scaledToFit().frame(width: 28, height: 28)
-                                    Text(item.name).font(.system(size: 11)).lineLimit(2)
-                                        .multilineTextAlignment(.center).frame(height: 30)
-                                }
-                                .frame(maxWidth: .infinity).padding(.vertical, 10)
-                                .contentShape(RoundedRectangle(cornerRadius: 10))
+                                Image(nsImage: item.applicationURL.map { NSWorkspace.shared.icon(forFile: $0.path) }
+                                      ?? NSImage(systemSymbolName: "menubar.rectangle", accessibilityDescription: nil)!)
+                                    .resizable().scaledToFit().frame(width: 20, height: 20)
+                                    .frame(width: 32, height: 32)
+                                    .background(hovered == item.id ? Color.primary.opacity(0.08) : .clear,
+                                                in: RoundedRectangle(cornerRadius: 6))
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+                            .onHover { hovered = $0 ? item.id : nil }
                             .help(item.name).accessibilityLabel(item.name)
                         }
                     }
-                    .padding(2)
                 }
-                .frame(maxHeight: 300)
+                .frame(width: MenuBarShelfSupport.stripWidth(itemCount: service.items.count))
             }
-            if let error = service.error {
-                Text(error).font(.caption).foregroundStyle(.orange)
+            if service.error != nil {
+                Image(systemName: "exclamationmark.circle")
+                    .foregroundStyle(.orange).help(service.error ?? "")
+                    .accessibilityLabel(service.error ?? "")
             }
+            Divider().frame(height: 18)
+            Menu {
+                Button(service.arranging ? text.done : text.arrange) { service.setArranging(!service.arranging) }
+                Button(l10n.s.homebrewRefresh) { service.refresh() }
+                Button(l10n.s.panelSettings) { service.showSettings() }
+            } label: {
+                Image(systemName: "ellipsis").font(.system(size: 13, weight: .semibold))
+            }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden)
+            .frame(width: 24).help(text.title)
         }
-        .padding(18).frame(width: 390)
+        .padding(.horizontal, 10)
+        .frame(height: MenuBarShelfSupport.stripHeight)
+        .fixedSize()
     }
 }
 
@@ -88,6 +85,9 @@ struct MenuBarShelfSettings: View {
                 } else {
                     Text(text.instructions)
                         .font(.caption).foregroundStyle(.secondary)
+                    if let error = service.error {
+                        Text(error).font(.caption).foregroundStyle(.orange)
+                    }
                     HStack {
                         Button(service.arranging ? text.done : text.arrange) {
                             service.setArranging(!service.arranging)

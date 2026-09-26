@@ -41,7 +41,7 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate {
         // Create launcher first; subsequent items appear to its left by default.
         let buttonItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         buttonItem.autosaveName = "MenuBarShelfLauncher"
-        buttonItem.button?.image = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: FeatureStrings.menuBarShelf(L10n.shared.language).title)
+        buttonItem.button?.image = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: FeatureStrings.menuBarShelf(L10n.shared.language).title)
         buttonItem.button?.toolTip = FeatureStrings.menuBarShelf(L10n.shared.language).title
         buttonItem.button?.target = self
         buttonItem.button?.action = #selector(toggle)
@@ -93,7 +93,22 @@ final class MenuBarShelfService: NSObject, ObservableObject, NSPopoverDelegate {
         guard AppFeature.menuBarShelf.isAvailable, AXIsProcessTrusted(), let button = launcher?.button else { return }
         if popover.isShown { popover.close(); return }
         refresh()
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        // A shelf and the main panel are mutually exclusive surfaces.
+        let show = { [weak self, weak button] in
+            guard let self, let button, self.launcher != nil else { return }
+            self.popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.closePopover(animated: false, completion: show)
+        } else { show() }
+    }
+
+    func dismiss() { popover.close() }
+
+    func showSettings() {
+        popover.close()
+        SettingsRouter.shared.request(FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration))
+        (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
     }
 
     func setArranging(_ enabled: Bool) {
