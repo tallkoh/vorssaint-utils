@@ -204,13 +204,15 @@ final class Permissions: ObservableObject {
     private func refreshActivePermissions() {
         let ax = AXIsProcessTrusted()
         let sr = CGPreflightScreenCaptureAccess()
-        DispatchQueue.main.async {
+        let publish = {
             if self.accessibility != ax { self.accessibility = ax }
             if self.screenRecording != sr { self.screenRecording = sr }
-            // A flip can change which cadence applies (e.g. the last grant
-            // landed while the app was in the background).
             self.scheduleActivePermissionPolling()
         }
+        // Request paths immediately inspect this state. Publishing later made a
+        // successful check still present the stale missing-permission guide.
+        if Thread.isMainThread { publish() }
+        else { DispatchQueue.main.async(execute: publish) }
     }
 
     /// Protected directories safe to use both as access probes and as
