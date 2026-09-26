@@ -174,6 +174,8 @@ enum DefaultsKey {
     static let quitProtectionCloseScope = "quitProtectionCloseScope"
     static let quitProtectionCloseExceptions = "quitProtectionCloseExceptions"
     static let quitProtectionCloseShowFeedback = "quitProtectionCloseShowFeedback"
+    static let menuBarShelfEnabled = "menuBarShelfEnabled"
+    static let menuBarShelfConfigured = "menuBarShelfConfigured"
     static let shelfEnabled = "shelfEnabled"
     static let shelfShortcutEnabled = "shelfShortcutEnabled"
     static let shelfShortcut = "shelfShortcut"            // GlobalShortcut storage value
@@ -1047,6 +1049,8 @@ enum Defaults {
     static let allowedMonitorAlertCooldowns = [2, 5, 15, 30, 60]
 
     static let registeredDefaults: [String: Any] = [
+        DefaultsKey.menuBarShelfEnabled: false,
+        DefaultsKey.menuBarShelfConfigured: false,
         DefaultsKey.appearance: AppAppearance.fallback.rawValue,
         DefaultsKey.liquidGlassEnabled: false,
         DefaultsKey.clamshellPreferred: false,

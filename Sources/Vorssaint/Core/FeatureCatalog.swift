@@ -26,7 +26,7 @@ enum AppFeature: String, CaseIterable {
     // Energy and display
     case keepAwake, brightness, extraBrightness, bluetoothSleep
     // Tools
-    case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
+    case menuBarShelf, quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
          commandBar, screenRecorder, wallpaper, killProcess, portManager
     // Dynamic Island, then its extensions
@@ -110,7 +110,7 @@ extension AppFeature {
             return .sound
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep:
             return .energyDisplay
-        case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
+        case .menuBarShelf, .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
              .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager:
             return .tools
@@ -151,6 +151,7 @@ extension AppFeature {
         case .pastePlain: return "doc.plaintext"
         case .finderCutPaste: return "scissors"
         case .finderRename: return "pencil"
+        case .menuBarShelf: return "square.grid.2x2"
         case .shelf: return "tray.full"
         case .urlCleaner: return "link"
         case .diskImageInstaller: return "externaldrive.badge.plus"
@@ -264,6 +265,7 @@ extension AppFeature {
         case .finderCutPaste: return [DefaultsKey.finderCutPasteEnabled,
                                       DefaultsKey.finderPasteImageAsFile]
         case .finderRename: return [DefaultsKey.finderRenameEnabled]
+        case .menuBarShelf: return [DefaultsKey.menuBarShelfEnabled]
         case .shelf: return [DefaultsKey.shelfEnabled]
         case .urlCleaner: return [DefaultsKey.urlCleanerEnabled]
         case .soundOutputSwitcher: return [DefaultsKey.soundOutputSwitcherEnabled]
@@ -341,7 +343,7 @@ extension AppFeature {
              .commandBar:
             return [.accessibility]
         case .finderCutPaste: return [.accessibility, .automationFinder]
-        case .finderRename: return [.accessibility]
+        case .menuBarShelf, .finderRename: return [.accessibility]
         // Only emptying the Trash asks the Finder; every other quick toggle
         // (dark mode included) works without a permission.
         case .quickToggles: return [.automationFinder]
@@ -409,7 +411,7 @@ extension AppFeature {
             ($0.availabilityKey,
              $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
                 && $0 != .killProcess && $0 != .scrollHorizontal && $0 != .portManager && $0 != .wallpaper
-                && $0 != .audioPriority)
+                && $0 != .audioPriority && $0 != .menuBarShelf)
         })
     }
 

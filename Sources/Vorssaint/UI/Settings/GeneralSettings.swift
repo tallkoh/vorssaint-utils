@@ -24,6 +24,7 @@ struct GeneralSettings: View {
                 Text(l10n.s.tabGeneral).font(.title2.bold())
                 basicsCard
                 appearanceCard
+                if AppFeature.menuBarShelf.isAvailable { MenuBarShelfSettings() }
                 if AppFeature.keepAwake.isAvailable {
                     shortcutCard
                 }

@@ -245,6 +245,7 @@ final class FeatureRuntime: ObservableObject {
         .pastePlain: { PastePlainService.shared.syncWithPreferences() },
         .finderCutPaste: { FinderCutPaste.shared.syncWithPreferences() },
         .finderRename: { FinderRenameService.shared.syncWithPreferences() },
+        .menuBarShelf: { MenuBarShelfService.shared.syncWithPreferences() },
         .shelf: {
             ShelfService.shared.syncWithPreferences()
             NotchFileToolsService.shared.syncWithPreferences()
