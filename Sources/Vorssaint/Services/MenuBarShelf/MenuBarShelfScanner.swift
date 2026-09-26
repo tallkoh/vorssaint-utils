@@ -34,6 +34,13 @@ enum MenuBarShelfScanner {
         return CGRect(origin: point, size: size)
     }
 
+    static func hasOpenMenu(_ element: AXUIElement) -> Bool {
+        let children = attribute(element, kAXChildrenAttribute) as? [AXUIElement] ?? []
+        return children.contains {
+            frame($0) != nil && attribute($0, kAXRoleAttribute) as? String == kAXMenuRole
+        }
+    }
+
     static func scan(applications: [(pid_t, String, URL?)], ownPID: pid_t) -> [MenuBarShelfItem] {
         guard AXIsProcessTrusted() else { return [] }
         var result: [MenuBarShelfItem] = []

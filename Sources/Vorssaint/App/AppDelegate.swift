@@ -250,14 +250,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if inputSourceRestorationPending { return .terminateLater }
-        guard CommandBarService.shared.hasBorrowedInputSource else { return .terminateNow }
+        let restoreShelf = AppFeature.menuBarShelf.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.menuBarShelfEnabled)
+        guard CommandBarService.shared.hasBorrowedInputSource || restoreShelf else { return .terminateNow }
         inputSourceRestorationPending = true
         // Terminate-later runs a modal loop, which may be nested inside a
         // main-queue callback. Schedule in both modes before approving quit.
         RunLoop.main.perform(inModes: [.default, .modalPanel]) { [weak self] in
             CommandBarService.shared.restoreBorrowedInputSource()
-            self?.inputSourceRestorationPending = false
-            sender.reply(toApplicationShouldTerminate: true)
+            if restoreShelf {
+                // A nested modal loop may prevent the main actor from running.
+                // Never strand Quit: removing the process also removes its
+                // divider, so every native item remains reachable on fallback.
+                let deadline = Timer(timeInterval: 0.9, repeats: false) { [weak self] _ in
+                    guard self?.inputSourceRestorationPending == true else { return }
+                    self?.inputSourceRestorationPending = false
+                    sender.reply(toApplicationShouldTerminate: true)
+                }
+                RunLoop.main.add(deadline, forMode: .default)
+                RunLoop.main.add(deadline, forMode: .modalPanel)
+                Task { @MainActor in
+                    guard self?.inputSourceRestorationPending == true else { return }
+                    await MenuBarShelfService.shared.restoreBeforeTermination()
+                    deadline.invalidate()
+                    guard self?.inputSourceRestorationPending == true else { return }
+                    self?.inputSourceRestorationPending = false
+                    sender.reply(toApplicationShouldTerminate: true)
+                }
+            } else {
+                // Preserve the input-source path's modal-run-loop guarantee.
+                self?.inputSourceRestorationPending = false
+                sender.reply(toApplicationShouldTerminate: true)
+            }
         }
         return .terminateLater
     }

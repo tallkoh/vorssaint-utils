@@ -1981,9 +1981,15 @@ enum CommandBarTerminationContract {
     enum Bar {
         static var shared = CommandBarInputSourceContract.Service()
     }
+    struct Shelf {
+        static let shared = Shelf()
+        static var restorations = 0
+        @MainActor func restoreBeforeTermination() async { Self.restorations += 1 }
+    }
     class Fixture {
         typealias NSApplication = Application
         typealias CommandBarService = Bar
+        typealias MenuBarShelfService = Shelf
         var inputSourceRestorationPending = false
     }
     static func run(_ suite: TestSuite) {
@@ -2011,6 +2017,39 @@ enum CommandBarTerminationContract {
         suite.expect(idle.applicationShouldTerminate(idleApp) == .terminateNow
                      && idleApp.replies.isEmpty,
                      "termination without a borrowed layout does not create an asynchronous reply")
+        do {
+            let defaults = UserDefaults.standard
+            let keys = [AppFeature.menuBarShelf.availabilityKey, DefaultsKey.menuBarShelfEnabled]
+            let saved = keys.map { defaults.object(forKey: $0) }
+            defer {
+                for (key, value) in zip(keys, saved) {
+                    if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+                }
+            }
+            keys.forEach { defaults.set(true, forKey: $0) }
+            Shelf.restorations = 0
+            let (shelfHost, shelfApp) = reset(borrowed: true)
+            suite.expect(shelfHost.applicationShouldTerminate(shelfApp) == .terminateLater && shelfApp.replies.isEmpty,
+                         "quit waits for both input-source and menu-bar restoration")
+            awaitReply(shelfApp)
+            suite.expect(Shelf.restorations == 1 && shelfApp.replies == [true]
+                         && shelfApp.sourceAtReply == ["original"],
+                         "both restorations finish before a single quit reply")
+            let (nestedHost, nestedApp) = reset(borrowed: true)
+            var nestedFinished = false
+            DispatchQueue.main.async {
+                _ = nestedHost.applicationShouldTerminate(nestedApp)
+                awaitReply(nestedApp, mode: .modalPanel)
+                nestedFinished = true
+            }
+            let deadline = Date(timeIntervalSinceNow: 3)
+            while !nestedFinished && Date() < deadline {
+                _ = RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.005))
+            }
+            suite.expect(nestedFinished && nestedApp.replies == [true]
+                         && nestedApp.sourceAtReply == ["original"],
+                         "shelf cleanup cannot strand quit inside a nested modal loop")
+        }
         let (host, app) = reset(borrowed: true)
         suite.expect(host.applicationShouldTerminate(app) == .terminateLater
                      && CommandBarInputSourceContract.Sources.selected.isEmpty && app.replies.isEmpty,

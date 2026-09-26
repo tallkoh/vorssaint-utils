@@ -51,7 +51,6 @@ final class MenuBarShelfNativeBridge {
         guard !busy, AXIsProcessTrusted(), borrowed == nil,
               let frame = MenuBarShelfScanner.frame(item.element) else { return false }
         let windows = Self.windows()
-        NSLog("Shelf reveal geometry: source=%@ anchor=%@", NSStringFromRect(frame), NSStringFromRect(anchor))
         guard let source = Self.matching(frame, in: windows),
               let target = Self.matching(anchor, in: windows),
               source.id != target.id,
@@ -98,12 +97,12 @@ final class MenuBarShelfNativeBridge {
         down.flags = .maskCommand
         let cursor = CGEvent(source: nil)?.location
         source.localEventsSuppressionInterval = 0
-        let downOK = await Relay.send(down, pid: pid)
-        NSLog("Shelf move down delivered=%d", downOK)
+        _ = await Relay.send(down, pid: pid)
         try? await Task.sleep(for: .milliseconds(40))
         // Always release even if the down event timed out or the caller cancelled.
-        let upOK = await Relay.send(up, pid: pid)
-        NSLog("Shelf move up delivered=%d", upOK)
+        _ = await Relay.send(up, pid: pid)
+        // Tahoe requires a second release to leave native drag tracking.
+        _ = await Relay.send(up, pid: pid)
         if let cursor { CGWarpMouseCursorPosition(cursor) }
         // Tahoe animates the hosted windows after the event has been accepted.
         // Wait for settled geometry, not just delivery of the mouse-up event.
